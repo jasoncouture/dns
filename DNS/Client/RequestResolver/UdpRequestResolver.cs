@@ -12,7 +12,13 @@ namespace DNS.Client.RequestResolver {
         private int timeout;
         private IRequestResolver fallback;
         private IPEndPoint dns;
-
+        public static UdpRequestResolver Create(IPEndPoint endpoint, bool tcpFallback = true) {
+            IRequestResolver fallback = tcpFallback ? new TcpRequestResolver(endpoint) : (IRequestResolver)new NullRequestResolver();
+            return new UdpRequestResolver(endpoint, fallback);
+        }
+        public static UdpRequestResolver Create(IPAddress address, int port = 53, bool tcpFallback = true) {
+            return Create(new IPEndPoint(address, port), tcpFallback);
+        }
         public UdpRequestResolver(IPEndPoint dns, IRequestResolver fallback, int timeout = 5000) {
             this.dns = dns;
             this.fallback = fallback;
@@ -26,7 +32,7 @@ namespace DNS.Client.RequestResolver {
         }
 
         public async Task<IResponse> Resolve(IRequest request, CancellationToken cancellationToken = default(CancellationToken)) {
-            using(UdpClient udp = new UdpClient()) {
+            using (UdpClient udp = new UdpClient()) {
                 await udp
                     .SendAsync(request.ToArray(), request.Size, dns)
                     .WithCancellationTimeout(TimeSpan.FromMilliseconds(timeout), cancellationToken);
@@ -35,7 +41,7 @@ namespace DNS.Client.RequestResolver {
                     .ReceiveAsync()
                     .WithCancellationTimeout(TimeSpan.FromMilliseconds(timeout), cancellationToken);
 
-                if(!result.RemoteEndPoint.Equals(dns)) throw new IOException("Remote endpoint mismatch");
+                if (!result.RemoteEndPoint.Equals(dns)) throw new IOException("Remote endpoint mismatch");
                 byte[] buffer = result.Buffer;
                 Response response = Response.FromArray(buffer);
 
